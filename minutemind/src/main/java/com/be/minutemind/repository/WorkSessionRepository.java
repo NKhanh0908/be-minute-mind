@@ -58,4 +58,22 @@ public interface WorkSessionRepository extends JpaRepository<WorkSession, Long> 
         GROUP BY ws.userId
     """)
     List<Object[]> sumWorkMinutesForDateByUsers(@Param("userIds") List<Long> userIds, @Param("startOfDay") OffsetDateTime startOfDay, @Param("endOfDay") OffsetDateTime endOfDay);
+
+    /**
+     * Tổng phút WORK của mỗi user trong 1 goal cụ thể (qua task).
+     * Dùng cho bảng tiến độ thành viên trong Shared Goal.
+     */
+    @Query("""
+        SELECT ws.userId, COALESCE(SUM(ws.actualMinutes), 0)
+        FROM WorkSession ws
+        JOIN Task t ON t.id = ws.taskId
+        WHERE ws.userId IN :userIds
+          AND t.goalId = :goalId
+          AND ws.sessionType = com.be.minutemind.enums.SessionType.WORK
+        GROUP BY ws.userId
+    """)
+    List<Object[]> sumWorkMinutesForGoalByUsers(@Param("userIds") List<Long> userIds, @Param("goalId") Long goalId);
+    @Query("SELECT ws FROM WorkSession ws WHERE ws.userId IN :userIds AND ws.endedAt IS NOT NULL AND ws.sessionType = com.be.minutemind.enums.SessionType.WORK ORDER BY ws.endedAt DESC")
+    List<WorkSession> findRecentCompletedWorkSessionsByUserIds(@Param("userIds") List<Long> userIds, org.springframework.data.domain.Pageable pageable);
 }
+

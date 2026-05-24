@@ -33,11 +33,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String jwt = authHeader.substring(7);
-        if (jwtHelper.validateToken(jwt)) {
+        try {
             Long userId = jwtHelper.extractUserId(jwt);
             
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = ((com.be.minutemind.security.UserDetailsServiceImpl) userDetailsService).loadUserById(userId);
+                if (!userDetails.isEnabled()) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"error\": \"AccountDisabled\", \"message\": \"Account is disabled\"}");
+                    return;
+                }
                 
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities()
@@ -45,6 +51,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"error\": \"TokenExpired\", \"message\": \"Token đã hết hạn\"}");
+            return;
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"error\": \"InvalidToken\", \"message\": \"Token không hợp lệ\"}");
+            return;
         }
         filterChain.doFilter(request, response);
     }

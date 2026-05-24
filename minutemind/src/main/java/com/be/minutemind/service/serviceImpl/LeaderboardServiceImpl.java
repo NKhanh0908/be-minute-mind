@@ -2,8 +2,8 @@ package com.be.minutemind.service.serviceImpl;
 
 import com.be.minutemind.service.LeaderboardService;
 import com.be.minutemind.dtos.response.LeaderboardResponse;
+import com.be.minutemind.entities.User;
 import com.be.minutemind.entities.UserRelationship;
-import com.be.minutemind.repository.StreakRepository;
 import com.be.minutemind.repository.UserRelationshipRepository;
 import com.be.minutemind.repository.UserRepository;
 import com.be.minutemind.repository.WorkSessionRepository;
@@ -46,15 +46,16 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         }
 
         List<LeaderboardResponse> leaderboard = new ArrayList<>();
+        List<User> users = userRepository.findAllById(followingIds);
+        Map<Long, User> userMap = users.stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
         minutesMap.forEach((uid, minutes) -> {
-            userRepository.findById(uid).ifPresent(user -> {
+            User user = userMap.get(uid);
+            if (user != null) {
                 leaderboard.add(new LeaderboardResponse(
-                        user.getId(),
-                        user.getName(),
-                        user.getAvatarUrl(),
-                        minutes,
-                        0));
-            });
+                        user.getId(), user.getName(), user.getAvatarUrl(), minutes, 0));
+            }
         });
 
         leaderboard.sort(Comparator.comparing(LeaderboardResponse::value).reversed()

@@ -45,6 +45,10 @@ public class Goal {
     @Builder.Default
     private Integer sortOrder = 0;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean isShared = false;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private OffsetDateTime createdAt;

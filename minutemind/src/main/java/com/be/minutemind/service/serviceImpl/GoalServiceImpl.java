@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -29,10 +30,17 @@ public class GoalServiceImpl implements GoalService {
     @Transactional(readOnly = true)
     public List<GoalResponse> getUserGoals(Long userId) {
         List<Goal> goals = goalRepository.findByUserIdAndDeletedAtIsNullOrderBySortOrderAsc(userId);
-        return goals.stream().map(goal -> {
-            Integer totalLoggedMinutes = taskRepository.sumLoggedMinutesByGoalId(goal.getId());
-            return goalMapper.toResponse(goal, totalLoggedMinutes);
-        }).collect(Collectors.toList());
+        if (goals.isEmpty()) return Collections.emptyList();
+
+        List<Long> goalIds = goals.stream().map(Goal::getId).collect(Collectors.toList());
+        Map<Long, Integer> minutesMap = taskRepository.sumLoggedMinutesByGoalIds(goalIds)
+                .stream().collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> ((Number) row[1]).intValue()));
+
+        return goals.stream()
+                .map(goal -> goalMapper.toResponse(goal, minutesMap.getOrDefault(goal.getId(), 0)))
+                .collect(Collectors.toList());
     }
 
     @Transactional

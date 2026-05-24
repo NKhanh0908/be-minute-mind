@@ -14,8 +14,10 @@ public record GoalResponse(
         LocalDate deadline,
         GoalStatus status,
         Integer sortOrder,
+        Boolean isShared,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         Integer totalLoggedMinutes
 ) {
 }
+

@@ -16,6 +16,10 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     @Query("SELECT COALESCE(SUM(t.totalLoggedMinutes), 0) FROM Task t WHERE t.goalId = :goalId AND t.deletedAt IS NULL")
     Integer sumLoggedMinutesByGoalId(@Param("goalId") Long goalId);
 
+    @Query("SELECT t.goalId, COALESCE(SUM(t.totalLoggedMinutes), 0) FROM Task t " +
+           "WHERE t.goalId IN :goalIds AND t.deletedAt IS NULL GROUP BY t.goalId")
+    List<Object[]> sumLoggedMinutesByGoalIds(@Param("goalIds") List<Long> goalIds);
+
     // Atomic UPDATE
     @Modifying
     @Query("UPDATE Task t SET t.totalLoggedMinutes = t.totalLoggedMinutes + :minutes WHERE t.id = :id")
