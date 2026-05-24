@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Service: redis - Redis database container
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: minutemind-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ============================================================================
+  # Service: app - Spring Boot Backend Application
+  # ============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: minutemind-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      # Override REDIS_HOST to point to the docker-compose redis service name
+      - REDIS_HOST=redis
+      # You can override other environment variables here if needed
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
