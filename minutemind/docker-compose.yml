@@ -1,43 +1,52 @@
-version: '3.8'
-
 services:
-  # ============================================================================
-  # Service: redis - Redis database container
-  # ============================================================================
+
+  # ================================
+  # Redis
+  # ================================
   redis:
     image: redis:7-alpine
     container_name: minutemind-redis
+    restart: unless-stopped
+    command: >
+      sh -c '
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server --requirepass "$$REDIS_PASSWORD" --maxmemory 256mb --maxmemory-policy allkeys-lru;
+        else
+          exec redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru;
+        fi
+      '
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
+      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping; else redis-cli ping; fi"]
+      interval: 10s
+      timeout: 5s
       retries: 5
 
-  # ============================================================================
-  # Service: app - Spring Boot Backend Application
-  # ============================================================================
+  # ================================
+  # Spring Boot App
+  # ================================
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: minutemind-backend
+    container_name: minutemind-app
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     ports:
       - "8080:8080"
     env_file:
       - .env
     environment:
-      # Override REDIS_HOST to point to the docker-compose redis service name
       - REDIS_HOST=redis
-      # You can override other environment variables here if needed
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
 volumes:
   redis_data:

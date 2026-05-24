@@ -1,36 +1,41 @@
-# ==============================================================================
-# STAGE 1: Build the Spring Boot application using Maven and JDK 21
-# ==============================================================================
+# ================================
+# Stage 1: Build
+# ================================
 FROM maven:3.9.6-eclipse-temurin-21-alpine AS builder
-
-WORKDIR /build
-
-# Copy only pom.xml first to cache dependencies download
-COPY pom.xml .
-
-# Download dependencies offline to optimize docker cache rebuilds
-RUN mvn dependency:go-offline -B
-
-# Copy the source code and build the application
-COPY src ./src
-RUN mvn clean package -DskipTests
-
-# ==============================================================================
-# STAGE 2: Run the built JAR using lightweight Eclipse Temurin JRE 21
-# ==============================================================================
-FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Add a non-root user for security
-RUN addgroup -S spring && adduser -S spring -G spring
-USER spring:spring
+# Copy pom.xml trước để tận dụng Docker layer cache khi dependencies chưa đổi
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
 
-# Copy the built JAR from the builder stage
-COPY --from=builder /build/target/*.jar app.jar
+# Copy source và build (bỏ qua test để tăng tốc)
+COPY src ./src
+RUN mvn clean package -DskipTests -B
 
-# Expose port 8080
+# ================================
+# Stage 2: Runtime
+# ================================
+FROM eclipse-temurin:21-jre-alpine AS runtime
+
+# Tạo user non-root để chạy app (bảo mật)
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copy JAR từ stage build
+COPY --from=builder /app/target/*.jar app.jar
+
+# Đổi ownership sang appuser
+RUN chown appuser:appgroup app.jar
+
+USER appuser
+
 EXPOSE 8080
 
-# Run the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# JVM tuning cho container: giới hạn heap theo memory container
+ENTRYPOINT ["java", \
+  "-XX:+UseContainerSupport", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "-jar", "app.jar"]
