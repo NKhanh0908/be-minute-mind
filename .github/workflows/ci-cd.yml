@@ -21,6 +21,41 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: minutemind_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PORT: 8080
+      CONTEXT_PATH: /api/v1
+      DATABASE_URL: jdbc:postgresql://localhost:5432/minutemind_test
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      MAX_POOL_SIZE: 5
+      MIN_IDLE: 2
+      CONNECTION_TIMEOUT: 30000
+      JPA_DDL_AUTO: create-drop
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      JWT_SECRET: fDVidgXxPsgxmQnUPMECjPMLRJAeVZV9YuZpOCoOoBo=
+      JWT_TOKEN_EXPIRY: 900000
+      JWT_REFRESH_TOKEN_EXPIRY: 604800000
+      CORS_ORIGINS: http://localhost:5173
+      CLOUDINARY_CLOUD_NAME: dummy
+      CLOUDINARY_API_KEY: dummy
+      CLOUDINARY_API_SECRET: dummy
+      CLOUDINARY_FOLDER: dummy
 
     steps:
     - name: Checkout code
