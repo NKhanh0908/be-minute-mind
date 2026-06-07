@@ -17,15 +17,31 @@ public class Bucket4jConfig {
     @Value("${spring.data.redis.port:6379}")
     private int redisPort;
 
+    @Value("${spring.data.redis.password:}")
+    private String redisPassword;
+
+    @Value("${spring.data.redis.username:default}")
+    private String redisUsername;
+
     @Bean
     public RedisClient redisClient() {
-        return RedisClient.create("redis://" + redisHost + ":" + redisPort);
+        RedisURI.Builder builder = RedisURI.builder()
+                .withHost(redisHost)
+                .withPort(redisPort);
+
+        if (redisPassword != null && !redisPassword.isBlank()) {
+            builder.withAuthentication(redisUsername, redisPassword.toCharArray());
+        }
+
+        return RedisClient.create(builder.build());
     }
 
     @Bean
     public LettuceBasedProxyManager<byte[]> lettuceProxyManager(RedisClient redisClient) {
         return LettuceBasedProxyManager.builderFor(redisClient)
-                .withExpirationStrategy(io.github.bucket4j.distributed.ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(Duration.ofMinutes(1)))
+                .withExpirationStrategy(
+                    ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(Duration.ofMinutes(1))
+                )
                 .build();
     }
 }
