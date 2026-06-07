@@ -1,10 +1,77 @@
 # Gamification: Streaks & Badges
 
-To drive long-term habit formation, MinuteMind integrates a gamification system based on **daily focus streaks** and **achievement badges**.
+## Badge Award Workflow
+
+This business rule flowchart shows the step-by-step logic applied by the system to check and award badges upon session completion.
+
+```mermaid
+flowchart TD
+    Start([Session Completed]) --> Loop[Fetch all Achievement Badges from DB]
+    Loop --> LoopBadges[For each Badge]
+    LoopBadges --> CheckAwarded{Is Badge already earned by User?}
+    
+    CheckAwarded -- Yes --> NextBadge[Skip to next badge]
+    CheckAwarded -- No --> CheckCondType{Badge Condition Type?}
+    
+    CheckCondType -- TOTAL_MINUTES --> MetMin{totalFocusMinutes >= conditionValue?}
+    CheckCondType -- STREAK_DAYS --> MetStreak{currentStreak >= conditionValue?}
+    
+    MetMin -- Yes --> Award[Save UserBadge: seen=false, earnedAt=now]
+    MetMin -- No --> NextBadge
+    
+    MetStreak -- Yes --> Award
+    MetStreak -- No --> NextBadge
+    
+    Award --> NextBadge
+    NextBadge --> LoopEnd{More badges?}
+    LoopEnd -- Yes --> LoopBadges
+    LoopEnd -- No --> Finished([Gamification Flow Finished])
+```
 
 ---
 
-## Daily Streaks
+## Streak Update Workflow
+
+This business flowchart details the daily focus validation process and consecutive day calculations for streaks.
+
+```mermaid
+flowchart TD
+    Start([WORK session finished with actualMinutes > 0]) --> GetActivity[Fetch or Create StreakActivity for Today]
+    GetActivity --> AddMin[Add actualMinutes to activity.totalMinutes]
+    
+    AddMin --> CheckThreshold{Is activity.isValid == false AND totalMinutes >= user.streakThresholdMinutes?}
+    
+    CheckThreshold -- No --> SaveActivity[Save StreakActivity]
+    CheckThreshold -- Yes --> SetValid[Set activity.isValid = true]
+    
+    SetValid --> SaveActivity
+    SaveActivity --> GetStreakRecord[Fetch or Create Streak Record for User]
+    
+    GetStreakRecord --> CheckLastActive{Is streak.lastActiveDate null?}
+    
+    CheckLastActive -- Yes --> IncrementFirst[Set currentStreak=1, longestStreak=1, lastActiveDate=today, totalActiveDays=1]
+    CheckLastActive -- No --> CalcDays[Calculate days between lastActiveDate and today]
+    
+    CalcDays --> DayDiff{Days difference?}
+    
+    DayDiff -- "== 1 (Consecutive Day)" --> IncrementStreak[currentStreak++, lastActiveDate=today, totalActiveDays++]
+    DayDiff -- "> 1 (Streak Broken)" --> ResetStreak[currentStreak=1, lastActiveDate=today, totalActiveDays++]
+    DayDiff -- "== 0 (Already updated today)" --> NoStreakChange[Do not change streak]
+    
+    IncrementStreak --> UpdateLongest{currentStreak > longestStreak?}
+    UpdateLongest -- Yes --> SetLongest[Set longestStreak = currentStreak]
+    UpdateLongest -- No --> SaveStreak
+    SetLongest --> SaveStreak
+    
+    IncrementFirst --> SaveStreak[Save Streak to DB]
+    ResetStreak --> SaveStreak
+    NoStreakChange --> SaveStreak
+    SaveStreak --> End([Streak Update Complete])
+```
+
+---
+
+## Daily Streaks Business Rules
 
 A **Streak** represents the consecutive number of days a user has successfully met their daily focus goal.
 
@@ -34,7 +101,7 @@ When a day becomes valid, the system calculates the gap between the current date
 
 ---
 
-## Achievement Badges
+## Achievement Badges Business Rules
 
 **Badges** are digital awards representing milestones. They are defined in the `achievement_badges` table and earned by users, creating record associations in `user_badges`.
 

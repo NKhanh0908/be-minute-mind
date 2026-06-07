@@ -1,6 +1,40 @@
 # Business Domain: The Productivity Ecosystem
 
-## Introduction
+## Productivity Data Flow
+
+This diagram illustrates how a single focus session's data propagates through the various business modules to drive user motivation and social accountability.
+
+```mermaid
+flowchart TD
+    Goal[Goal: Target total minutes & deadline] -->|Decomposed into| Task[Task: Estimated minutes & status]
+    Task -->|Focus timer run on| Session[Focus Session: WorkSession actualMinutes]
+    
+    Session -->|1. Aggregates Logged Time| TaskLog[Task: Updates totalLoggedMinutes]
+    TaskLog -->|Recalculates Progress| GoalLog[Goal: Recalculates totalLoggedMinutes & % progress]
+    
+    Session -->|2. Aggregates Statistics| Stats[Stats: Updates todayMinutes & totalMinutes]
+    
+    Session -->|3. Updates Streaks| Activity[StreakActivity: Updates daily totalMinutes]
+    Activity -->|Compares against| Threshold{daily minutes >= user.streakThresholdMinutes?}
+    
+    Threshold -- Yes --> MarkValid[Set StreakActivity.isValid = true]
+    MarkValid --> UpdateStreak[Streak: Increments currentStreak & totalActiveDays]
+    Threshold -- No --> SaveActivity[Save StreakActivity]
+    
+    UpdateStreak -->|4. Evaluates Achievements| BadgeEval{Badge Conditions met?}
+    Stats -->|Evaluates Achievements| BadgeEval
+    
+    BadgeEval -- Yes --> AwardBadge[Award UserBadge: seen = false, earnedAt = now]
+    BadgeEval -- No --> EndGamify([Finish Gamification Checks])
+    
+    Session -->|5. Populates Leaderboard| Leaderboard[Daily Leaderboard: Ranks user against followed friends]
+    
+    Session -->|6. Publishes Activity| Feed[Activity Feed: Notifies followed friends of focused work]
+```
+
+---
+
+## The Core Design Philosophy
 
 At its core, **MinuteMind** is not just another Pomodoro app or simple task manager. It is a **Gamified Productivity Ecosystem** designed to tackle a universal human problem: **the gap between long-term goals and daily execution**.
 
@@ -10,13 +44,7 @@ MinuteMind solves this by creating a closed, self-reinforcing loop where **long-
 
 ---
 
-## The Core Value Loop: Goal to Social Accountability
-
-The system operates as a unified chain of behaviors, where each step feeds into the next:
-
-```
-[Goal] ➔ [Task] ➔ [Focus Session] ➔ [Streak] ➔ [Badge] ➔ [Leaderboard] ➔ [Community Accountability]
-```
+## Module Breakdown
 
 ### 1. Goal (The Vision)
 A **Goal** represents the macro objective (e.g., "Build a Personal Portfolio", "Learn Advanced Spring Boot"). It provides direction and purpose. Without a goal, daily tasks lack context and meaning. In MinuteMind, goals define:
@@ -57,15 +85,4 @@ Human beings are social creatures who are motivated by peer comparison. The **Da
 ### 7. Community Accountability (Shared Execution)
 Social accountability is the ultimate deterrent to procrastination. MinuteMind introduces two social layers:
 - **Activity Feed**: A transparent timeline showing when friends complete focus sessions, celebrating their dedication.
-- **Shared Goals**: The ability for mutual friends (up to 10 members) to collaborate on a single goal. Members can see each other's today's focus minutes, total goal contributions, and progress percentages. If one member slacks off, the entire group's target is delayed, leveraging positive peer pressure.
-
----
-
-## Why this Architecture Exists
-
-Every database table and API endpoint in this project exists to support this psychological loop. 
-- The **Redis Active Session Cache** guarantees focus integrity (prevents false logging).
-- The **Soft Delete** mechanism on Goals and Tasks preserves history for stats and streak activities, ensuring past efforts are never lost.
-- The **Mutual-Follow constraint** for shared goal invitations ensures that shared goals remain intimate and supportive circles rather than spam targets.
-
-By transforming raw time-tracking into social reputation and gamified status, MinuteMind converts passive screen-time into active, focused execution.
+- **Shared Goals**: The ability for mutual friends (up to 10 members) to collaborate on a single goal. Members can see each other's today's focus, total goal contributions, and progress percentages. If one member slacks off, the entire group's target is delayed, leveraging positive peer pressure.

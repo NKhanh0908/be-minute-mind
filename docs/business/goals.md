@@ -1,10 +1,66 @@
 # Goals & Tasks Management
 
-## Goals
+## Goal Lifecycle
 
-A **Goal** represents a high-level objective that acts as a container for tasks and focus sessions.
+This flowchart describes the progression of a goal from its initial creation to ultimate completion and archival.
 
-### Business Rules & Constraints
+```mermaid
+flowchart TD
+    Create([1. Goal Creation]) -->|Init status: ACTIVE| Plan[2. Task Planning: Add subtasks with estimated minutes]
+    Plan --> Track[3. Progress Tracking: Users run focus sessions on subtasks]
+    Track -->|actualMinutes added to Tasks| SumMinutes[Goal dynamically sums task focus minutes]
+    SumMinutes --> CheckProgress{Is targetTotalMinutes met OR all Tasks completed?}
+    
+    CheckProgress -- Yes --> Complete[4. Goal Completion: Status becomes COMPLETED]
+    CheckProgress -- No --> Track
+    
+    Complete --> Archive[5. Goal Archiving: Status set to ARCHIVED or soft-deleted]
+    Track -->|User pauses focus| Pause[Goal status set to PAUSED]
+    Pause -->|User resumes| Track
+    Track -->|User deletes/archives| Archive
+    
+    Archive --> End([Goal Inactive])
+```
+
+---
+
+## Goal States
+
+This state transition diagram represents the valid status states of a Goal, mapped to the `GoalStatus` enum.
+
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE : Goal Created
+    ACTIVE --> PAUSED : User pauses goal progress
+    PAUSED --> ACTIVE : User resumes goal progress
+    ACTIVE --> COMPLETED : targetTotalMinutes reached or all tasks DONE
+    ACTIVE --> ARCHIVED : User archives goal / soft deletes
+    PAUSED --> ARCHIVED : User archives goal
+    COMPLETED --> ARCHIVED : User archives goal
+    ARCHIVED --> [*] : Deleted goal excluded from active lists
+```
+
+---
+
+## Task States
+
+This state transition diagram represents the lifecycle states of a Task, mapped to the `TaskStatus` enum.
+
+```mermaid
+stateDiagram-v2
+    [*] --> TODO : Task Created
+    TODO --> IN_PROGRESS : Auto-triggered when a WorkSession starts on the task
+    IN_PROGRESS --> DONE : Auto-triggered when completing session with 'completedTask = true'
+    TODO --> DONE : User manually marks task as complete
+    IN_PROGRESS --> TODO : User manually resets task status
+    DONE --> TODO : User reopens completed task
+    DONE --> [*] : Soft deleted
+```
+
+---
+
+## Goals Business Rules & Constraints
+
 1. **Ownership**: A goal is private to a user by default. Only the owner can view, update, soft-delete, or reorder their private goals.
 2. **Dynamic Progress Aggregation**: 
    - A goal does not store accumulated focus minutes statically in its table. 
@@ -17,11 +73,8 @@ A **Goal** represents a high-level objective that acts as a container for tasks 
 
 ---
 
-## Tasks
+## Tasks Business Rules & Constraints
 
-A **Task** is a granular work unit belonging to a goal. 
-
-### Business Rules & Constraints
 1. **Goal Association**: A task must always belong to an active goal.
 2. **Reassignment (Moving Tasks)**:
    - A task can be moved to another goal.

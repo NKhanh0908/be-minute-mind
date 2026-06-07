@@ -1,6 +1,72 @@
 # Community & Social Accountability
 
-To prevent isolation and maintain user engagement, MinuteMind incorporates a social accountability layer based on mutual relationships, real-time leaderboard comparisons, an activity feed, and collaborative goals.
+## Shared Goal Workflow
+
+This business rule flowchart displays the validation requirements, state progression, and role assignments when collaborating on shared goals.
+
+```mermaid
+flowchart TD
+    Start([Owner decides to share Goal]) --> Share[POST /community/goals/{id}/share]
+    Share --> OwnerMember[Add Owner to goal_members with role: OWNER]
+    OwnerMember --> Invite[POST /community/goals/{id}/invitations]
+    
+    Invite --> Rule1{Is invitee a mutual friend?}
+    Rule1 -- No --> FailFriend[Block: Can only invite mutual followers]
+    Rule1 -- Yes --> Rule2{Already member or invite pending?}
+    
+    Rule2 -- Yes --> FailMem[Block: Already member or invite pending]
+    Rule2 -- Yes --> Rule3{Current members + Pending < 10?}
+    
+    Rule3 -- No --> FailLimit[Block: Goal member capacity reached]
+    Rule3 -- Yes --> CreateInvite[Create GoalInvitation status: PENDING]
+    
+    CreateInvite --> Respond[PATCH /community/invitations/{invitationId}]
+    Respond --> Action{Accept or Decline?}
+    
+    Action -- Decline --> SetDeclined[Set status = DECLINED]
+    Action -- Accept --> Rule4{Is member count < 10?}
+    
+    Rule4 -- No --> AutoDecline[Set status = DECLINED, throw Goal Full]
+    Rule4 -- Yes --> SetAccepted[Set status = ACCEPTED]
+    SetAccepted --> CreateMember[Add User to goal_members with role: MEMBER]
+```
+
+---
+
+## Community Flow
+
+This flowchart models the social network interactions, showing how following connections lead to active feed updates and real-time competition.
+
+```mermaid
+flowchart LR
+    UserA[User A] -->|Follows| UserB[User B]
+    UserB -->|Follows| UserA
+    
+    UserA & UserB -->|Mutual Follows| Friends[Mutual Friends / Friends Graph]
+    
+    UserB -->|Completes WorkSession| Session[WorkSession actualMinutes]
+    Session -->|Feeds into| Feed[Activity Feed: User A views User B's completed session]
+    Session -->|Feeds into| Leaderboard[Daily Leaderboard: User A competes with User B's todayMinutes]
+    
+    Leaderboard -->|Drives| SocialPressure[Social Accountability: Encourages User A to focus]
+```
+
+---
+
+## Invitation States
+
+This state transition diagram represents the valid status states of a Shared Goal invitation, mapped to the `InvitationStatus` enum.
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING : Owner invites user to shared goal
+    PENDING --> ACCEPTED : Invitee accepts invitation (joins as MEMBER)
+    PENDING --> DECLINED : Invitee declines (or auto-declines if goal fills up)
+    PENDING --> CANCELLED : Owner cancels the invitation before response
+    ACCEPTED --> [*]
+    DECLINED --> [*]
+    CANCELLED --> [*]
+```
 
 ---
 
@@ -37,9 +103,7 @@ The **Activity Feed** (`GET /community/feed`) displays a live stream of achievem
 
 ---
 
-## Shared Goals
-
-A **Shared Goal** is a collaborative effort where up to 10 users contribute to a single target.
+## Shared Goals Collaboration Rules
 
 ### 1. Enabling Shared Mode
 - The goal creator (owner) enables sharing via `POST /community/goals/{id}/share`.

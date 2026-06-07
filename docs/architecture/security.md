@@ -1,6 +1,99 @@
 # Security & Authentication Architecture
 
-MinuteMind implements a stateless, token-based authentication system using Spring Security, JSON Web Tokens (JWT), and a Refresh Token Rotation (RTR) mechanism.
+## JWT Authentication Flow
+
+This sequence diagram illustrates how the `JwtAuthenticationFilter` intercepts requests, decodes bearer tokens, checks account states, and registers user principals into Spring Security Context.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Filter as JwtAuthenticationFilter
+    participant Helper as JwtHelper
+    participant UserDetailsSvc as UserDetailsServiceImpl
+    participant Repo as UserRepository
+    participant Context as SecurityContextHolder
+
+    Client->>Filter: Request (Headers: Bearer <jwt>)
+    activate Filter
+    
+    Filter->>Helper: extractUserId(jwt)
+    activate Helper
+    Note over Helper: Decode secret with Base64<br/>Verify HMAC-SHA Signature & Expiry
+    Helper-->>Filter: userId (Long)
+    deactivate Helper
+    
+    Filter->>UserDetailsSvc: loadUserById(userId)
+    activate UserDetailsSvc
+    UserDetailsSvc->>Repo: findById(userId)
+    activate Repo
+    Repo-->>UserDetailsSvc: User Entity
+    deactivate Repo
+    UserDetailsSvc-->>Filter: CustomUserDetails
+    deactivate UserDetailsSvc
+    
+    Filter->>Filter: userDetails.isEnabled() (Check User.isActive)
+    alt Account Deactivated
+        Filter-->>Client: 401 Unauthorized ({"error": "AccountDisabled"})
+    else Account Active
+        Filter->>Context: Set Authentication (UsernamePasswordAuthenticationToken)
+        Filter->>Filter: doFilter(request, response)
+        Filter-->>Client: Forward to Controller
+    end
+    deactivate Filter
+```
+
+---
+
+## Refresh Token Rotation
+
+This sequence diagram details the **Refresh Token Rotation (RTR)** flow, highlighting token hash validation, immediate revocation of the old token, and new token pair generation.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Controller as AuthController
+    participant Service as AuthServiceImpl
+    participant TokenRepo as RefreshTokenRepository
+    participant UserRepo as UserRepository
+    participant Helper as JwtHelper
+
+    Client->>Controller: POST /auth/refresh (rawRefreshToken)
+    activate Controller
+    Controller->>Service: refreshToken(rawRefreshToken)
+    activate Service
+    
+    Service->>Service: hashToken(rawRefreshToken) using SHA-256 & Base64
+    Service->>TokenRepo: findByTokenHashAndRevokedAtIsNull(tokenHash)
+    activate TokenRepo
+    TokenRepo-->>Service: RefreshToken Entity
+    deactivate TokenRepo
+    
+    Note over Service: Check if expiresAt > NOW
+    
+    Service->>Service: Revoke Old Token (set revokedAt = NOW)
+    Service->>TokenRepo: Save Revoked RefreshToken
+    
+    Service->>UserRepo: findById(userId)
+    activate UserRepo
+    UserRepo-->>Service: User Entity
+    deactivate UserRepo
+    
+    Service->>Helper: generateAccessToken(user)
+    activate Helper
+    Helper-->>Service: newAccessToken
+    deactivate Helper
+    
+    Service->>Service: Generate new UUID (newRawRefreshToken)
+    Service->>Service: Hash new UUID using SHA-256
+    Service->>TokenRepo: Save new RefreshToken (tokenHash, expiresAt)
+    
+    Service-->>Controller: AuthResponse (newAccessToken, newRawRefreshToken, user)
+    deactivate Service
+    Controller-->>Client: 200 OK (AuthResponse)
+    deactivate Controller
+```
 
 ---
 
@@ -45,30 +138,6 @@ If the JWT validation fails, the filter directly writes the following JSON respo
 ---
 
 ## Refresh Token Rotation (RTR) & Storage Security
-
-To protect against token hijacking and session theft, the backend implements a strict **Refresh Token Rotation** flow:
-
-```
-[Client submits Raw Refresh Token]
-              │
-              ▼
-[Hash Raw Token using SHA-256 & Base64 Encode]
-              │
-              ▼
-[Verify TokenHash in DB (Not expired & Not revoked)]
-              │
-              ▼
-[Revoke Old Token: set revokedAt = now]
-              │
-              ▼
-[Generate New Access Token & New Raw Refresh Token]
-              │
-              ▼
-[Hash & Save New Refresh Token to DB]
-              │
-              ▼
-[Return New Pair to Client]
-```
 
 ### Key Security Implementations:
 1. **Token Hashing in DB**: Refresh tokens are never stored in plain text. When a refresh token is generated (`UUID.randomUUID().toString()`), it is hashed using **SHA-256** and Base64-encoded before being saved to the `refresh_tokens.token_hash` column. Even in the event of a database compromise, attackers cannot use the hashes to authenticate.

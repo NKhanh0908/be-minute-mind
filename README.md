@@ -41,30 +41,27 @@ By turning focused time into gamified rewards and social accountability, MinuteM
 
 ---
 
-## 🏛️ Architecture Snapshot
+## 🏛️ High-Level System Architecture
 
-```
-[ Client / Web Browser ]
-          │
-          ▼ (JWT Auth & Rate Limiting Aspect)
-┌────────────────────────────────────────────────────────┐
-│  Presentation / Controller Layer (REST Endpoints)      │
-└─────────────────────────┬──────────────────────────────┘
-                          ▼
-┌────────────────────────────────────────────────────────┐
-│  Service Layer (Business Logic & Transactions)          │
-└─────────────────────────┬──────────────────────────────┘
-                          ▼
-┌────────────────────────────────────────────────────────┐
-│  Data Access / Repository Layer (Spring Data JPA)      │
-└─────────────────────────┬──────────────────────────────┘
-                          ▼
-             ┌────────────┴────────────┐
-             │                         │
-             ▼                         ▼
-      [ PostgreSQL DB ]            [ Redis ]
-   - Streaks & Progress Logs     - Active Session Lock
-   - Goals, Tasks & Badges       - Rate Limiting Tokens
+This diagram outlines the infrastructure configuration and data paths connecting the client app, the Spring Boot API, caches, databases, and third-party cloud engines.
+
+```mermaid
+flowchart TD
+    Client[Frontend: Vite + React SPA] -->|HTTPS Requests / JSON payloads| API[Spring Boot REST API: Port 8080]
+    
+    API -->|1. Persistent Storage| DB[(PostgreSQL DB: Supabase)]
+    API -->|2. Caching & Caching Locks| Redis[(Redis Store)]
+    API -->|3. Image Uploads| Cloudinary[Cloudinary Cloud Storage]
+    
+    subgraph Redis Cache Details
+        Redis -->|Enforces Single Session| Lock[Active Session Token vilo:active_session:userId]
+        Redis -->|Enforces IP Rate Limits| Bucket[Bucket4j Lettuce Proxy manager]
+    end
+    
+    subgraph Spring Boot Modules
+        API --> Filter[JwtAuthenticationFilter]
+        API --> Aspect[RateLimitAspect: Bucket4j AOP]
+    end
 ```
 
 ---
@@ -103,31 +100,25 @@ The application will start on port `8080`.
 To keep the documentation clean and readable, technical and business specifications are split into dedicated files under the `docs/` directory.
 
 ### 1. Business & Domain Logic (Level 2: Developers)
-- [Domain & Productivity Loop](docs/business/domain.md) - Deep dive into how the core loops interact.
-- [Goals & Tasks Specification](docs/business/goals-and-tasks.md) - Creation, soft-deletes, reordering, and state updates.
-- [Focus Session Workflows](docs/business/focus-sessions.md) - State machines, Heartbeats, and cleanup mechanisms.
-- [Gamification Details](docs/business/gamification.md) - Streak calculations and Badge rules.
-- [Community Features](docs/business/community.md) - Social graph, leaderboards, feeds, and Shared Goals.
+- [Domain & Productivity Loop](docs/business/domain.md) - Deep dive into how the core loops interact. Contains: **Productivity Data Flow**.
+- [Goals & Tasks Specification](docs/business/goals.md) - Creation, soft-deletes, reordering, and state updates. Contains: **Goal Lifecycle**, **Goal States**, **Task States**.
+- [Focus Session Workflows](docs/business/sessions.md) - State machines, Heartbeats, and cleanup mechanisms. Contains: **Focus Session Lifecycle**, **Work Session States**, **Session Management Flow**.
+- [Gamification Details](docs/business/gamification.md) - Streak calculations and Badge rules. Contains: **Badge Award Rules**, **Streak Update Workflow**.
+- [Community Features](docs/business/community.md) - Social graph, leaderboards, feeds, and Shared Goals. Contains: **Shared Goal Workflow**, **Community Flow**, **Invitation States**.
 
 ### 2. System Architecture & Setup (Level 2: Developers)
-- [Architecture Overview](docs/architecture/overview.md) - Spring Boot layers, Redis cache, and Bucket4j Rate Limiting aspects.
-- [Security Architecture](docs/architecture/security.md) - JWT filters, Custom UserDetails, and Refresh Token Rotation.
-- [Database Specification](docs/architecture/database.md) - PostgreSQL tables, foreign key structures, and performance indexes.
-- [Workflow Flowcharts Index](docs/architecture/workflows.md) - Access diagrams index.
+- [Architecture Overview](docs/architecture/overview.md) - Spring Boot layers, Redis cache, and Bucket4j Rate Limiting aspects. Contains: **System Architecture**, **Package Architecture**, **Request Lifecycle**.
+- [Security Architecture](docs/architecture/security.md) - JWT filters, Custom UserDetails, and Refresh Token Rotation. Contains: **JWT Authentication Flow**, **Refresh Token Rotation**.
+- [Database Specification](docs/architecture/database.md) - PostgreSQL tables, foreign key structures, and performance indexes. Contains: **Entity Relationship Diagram (ERD)**.
+- [Workflow Flowcharts Index](docs/architecture/workflows.md) - Access diagrams index. Contains: **Scheduler & Automation Flow**, **Diagram Index Map**.
 
-### 3. Setup & Deployment (Level 3: Contributors)
+### 3. Setup & Deployment (Level 3: Testing & Contributors)
 - [Local Development Setup](docs/development/setup.md) - Running the app locally from terminal or IDE.
 - [Environment Variables](docs/development/environment.md) - Reference table for all config properties.
 - [Docker Configuration](docs/development/docker.md) - Multi-stage Dockerfile and docker-compose options.
 - [Testing Guide](docs/development/testing.md) - Test dependencies, running tests, and recommended testing strategy.
 
-### 4. Interactive Diagrams
-- [Entity Relationship Diagram (ERD)](docs/diagrams/erd.md)
-- [Focus Session Flowchart](docs/diagrams/session-flow.md)
-- [Shared Goal Invitation Flowchart](docs/diagrams/shared-goal-flow.md)
-- [Gamification Badge Flowchart](docs/diagrams/badge-flow.md)
-
-### 5. API Reference Endpoints
+### 4. API Reference Endpoints
 - [Authentication APIs](docs/api/authentication.md)
 - [Goals APIs](docs/api/goals.md)
 - [Tasks APIs](docs/api/tasks.md)
