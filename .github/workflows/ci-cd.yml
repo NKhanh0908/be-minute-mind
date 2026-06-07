@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       redis:
-        image: redis:7-alpine
+        image: public.ecr.aws/docker/library/redis:7-alpine
         ports:
           - 6379:6379
         options: >-
@@ -22,7 +22,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       postgres:
-        image: postgres:15-alpine
+        image: public.ecr.aws/docker/library/postgres:15-alpine
         env:
           POSTGRES_DB: minutemind_test
           POSTGRES_USER: postgres
