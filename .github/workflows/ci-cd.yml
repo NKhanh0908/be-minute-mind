@@ -54,6 +54,6 @@ jobs:
 
     - name: Deploy to Railway
       working-directory: ./minutemind
-      run: railway deploy --detach
+      run: railway deploy
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
