@@ -1,52 +1,82 @@
 services:
-
-  # ================================
-  # Redis
-  # ================================
+  # ==============================================================================
+  # Redis Service
+  # ==============================================================================
   redis:
     image: redis:7-alpine
     container_name: minutemind-redis
-    restart: unless-stopped
-    command: >
-      sh -c '
-        if [ -n "$$REDIS_PASSWORD" ]; then
-          exec redis-server --requirepass "$$REDIS_PASSWORD" --maxmemory 256mb --maxmemory-policy allkeys-lru;
-        else
-          exec redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru;
-        fi
-      '
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "6379:6379"
     volumes:
-      - redis_data:/data
+      - redis-data:/data
+    networks:
+      - minutemind-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping; else redis-cli ping; fi"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
       retries: 5
 
-  # ================================
-  # Spring Boot App
-  # ================================
+  # ==============================================================================
+  # Spring Boot Backend Service (minutemind)
+  # ==============================================================================
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: minutemind-app
-    restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
     ports:
       - "8080:8080"
+    # Load environment variables từ file .env mặc định. 
+    # Bạn có thể đổi thành .env.dev hoặc .env.prod tùy nhu cầu
     env_file:
       - .env
     environment:
+      # Ghi đè cấu hình REDIS_HOST từ localhost thành tên service 'redis' để kết nối trong mạng Docker
       - REDIS_HOST=redis
-    deploy:
-      resources:
-        limits:
-          memory: 512m
+      # (Tùy chọn) Ghi đè JDBC URL nếu bạn muốn kết nối vào postgres local thay vì Supabase
+      # - DATABASE_URL=jdbc:postgresql://db:5432/minutemind_dev
+      # - DB_USERNAME=postgres
+      # - DB_PASSWORD=postgres_password
+    depends_on:
+      redis:
+        condition: service_healthy
+      # db:
+      #   condition: service_healthy
+    networks:
+      - minutemind-network
+    restart: always
+
+  # ==============================================================================
+  # PostgreSQL Service (Tùy chọn - Hãy bỏ comment nếu muốn chạy DB local hoàn toàn)
+  # ==============================================================================
+  # db:
+  #   image: postgres:16-alpine
+  #   container_name: minutemind-db
+  #   environment:
+  #     POSTGRES_DB: minutemind_dev
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres_password
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   networks:
+  #     - minutemind-network
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres -d minutemind_dev"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+
+networks:
+  minutemind-network:
+    driver: bridge
 
 volumes:
-  redis_data:
+  redis-data:
+    driver: local
+  # postgres-data:
+  #   driver: local
